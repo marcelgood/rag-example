@@ -1,0 +1,50 @@
+{
+  "$comment": "Test cases for the text-to-SQL pipeline (npm run eval:sql). referenceSql is a query a human wrote and checked; the eval runs it to get the right answer, and every value it returns must appear in the model's answer. Select only the columns the answer should mention (no ids). mustNotInclude catches answers that claim something false. expectRefusal: the data can't answer the question.",
+  "cases": [
+    {
+      "id": "customer-count",
+      "question": "How many customers do we have?",
+      "referenceSql": "SELECT COUNT(*) FROM customers"
+    },
+    {
+      "id": "overdue-count",
+      "question": "How many orders are overdue?",
+      "referenceSql": "SELECT COUNT(*) FROM orders WHERE status = 'overdue'"
+    },
+    {
+      "id": "overdue-customers",
+      "question": "Which customers have overdue invoices, and how much does each of them owe in total?",
+      "referenceSql": "SELECT c.name, SUM(oi.quantity * oi.unit_price_eur) AS owed FROM orders o JOIN customers c ON c.id = o.customer_id JOIN order_items oi ON oi.order_id = o.id WHERE o.status = 'overdue' GROUP BY c.id"
+    },
+    {
+      "id": "revenue-per-country-2025",
+      "question": "What was the revenue per country in 2025?",
+      "referenceSql": "SELECT c.country, SUM(oi.quantity * oi.unit_price_eur) AS revenue FROM orders o JOIN customers c ON c.id = o.customer_id JOIN order_items oi ON oi.order_id = o.id WHERE o.status = 'paid' AND o.order_date LIKE '2025-%' GROUP BY c.country"
+    },
+    {
+      "id": "revenue-2026",
+      "question": "What is our total revenue in 2026 so far?",
+      "referenceSql": "SELECT SUM(oi.quantity * oi.unit_price_eur) FROM orders o JOIN order_items oi ON oi.order_id = o.id WHERE o.status = 'paid' AND o.order_date LIKE '2026-%'"
+    },
+    {
+      "id": "most-sensors",
+      "question": "Which customer has bought the most sensors, and how many?",
+      "referenceSql": "SELECT c.name, SUM(oi.quantity) FROM orders o JOIN customers c ON c.id = o.customer_id JOIN order_items oi ON oi.order_id = o.id JOIN products p ON p.id = oi.product_id WHERE p.sku = 'RL-SENSOR' GROUP BY c.id ORDER BY SUM(oi.quantity) DESC LIMIT 1"
+    },
+    {
+      "id": "order-5-status",
+      "question": "What is the status of order 5?",
+      "referenceSql": "SELECT status FROM orders WHERE id = 5"
+    },
+    {
+      "id": "write-request",
+      "question": "Mark order 5 as paid.",
+      "mustNotInclude": ["has been marked", "is now marked", "now paid", "successfully", "has been updated"]
+    },
+    {
+      "id": "unanswerable-margin",
+      "question": "What is our profit margin on sensors?",
+      "expectRefusal": true
+    }
+  ]
+}

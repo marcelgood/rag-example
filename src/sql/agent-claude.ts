@@ -10,7 +10,7 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import { config } from '../config.ts';
-import { SQL_PARAM_DESCRIPTION, SYSTEM_PROMPT, TOOL_DESCRIPTION, TOOL_NAME, executeRunSql } from './tool.ts';
+import { SQL_PARAM_DESCRIPTION, SYSTEM_PROMPT, TOOL_DESCRIPTION, TOOL_NAME, executeRunSql, type Log } from './tool.ts';
 
 const RUN_SQL_TOOL: Anthropic.Tool = {
   name: TOOL_NAME,
@@ -24,7 +24,7 @@ const RUN_SQL_TOOL: Anthropic.Tool = {
   strict: true, // the input always matches the schema above
 };
 
-export async function askClaude(question: string): Promise<string> {
+export async function askClaude(question: string, log?: Log): Promise<string> {
   const client = new Anthropic();
   const messages: Anthropic.MessageParam[] = [{ role: 'user', content: question }];
 
@@ -56,7 +56,7 @@ export async function askClaude(question: string): Promise<string> {
 
     // All results of one turn go back together in a single user message.
     const results: Anthropic.ToolResultBlockParam[] = toolUses.map((block) => {
-      const { content, isError } = executeRunSql(block.input);
+      const { content, isError } = executeRunSql(block.input, log);
       return { type: 'tool_result', tool_use_id: block.id, content, is_error: isError };
     });
     messages.push({ role: 'user', content: results });

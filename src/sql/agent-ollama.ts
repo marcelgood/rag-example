@@ -10,7 +10,7 @@
 import type { Message, Tool } from 'ollama';
 import { config } from '../config.ts';
 import { ensureOllamaModel, ollama, ollamaChatOptions } from '../llm/ollama.ts';
-import { SQL_PARAM_DESCRIPTION, SYSTEM_PROMPT, TOOL_DESCRIPTION, TOOL_NAME, executeRunSql } from './tool.ts';
+import { SQL_PARAM_DESCRIPTION, SYSTEM_PROMPT, TOOL_DESCRIPTION, TOOL_NAME, executeRunSql, type Log } from './tool.ts';
 
 const RUN_SQL_TOOL: Tool = {
   type: 'function',
@@ -25,7 +25,7 @@ const RUN_SQL_TOOL: Tool = {
   },
 };
 
-export async function askOllama(question: string): Promise<string> {
+export async function askOllama(question: string, log?: Log): Promise<string> {
   await ensureOllamaModel();
   const messages: Message[] = [
     { role: 'system', content: SYSTEM_PROMPT },
@@ -45,7 +45,7 @@ export async function askOllama(question: string): Promise<string> {
     for (const call of calls) {
       const outcome =
         call.function.name === TOOL_NAME
-          ? executeRunSql(call.function.arguments)
+          ? executeRunSql(call.function.arguments, log)
           : { content: `Error: unknown tool "${call.function.name}".`, isError: true };
       messages.push({ role: 'tool', tool_name: call.function.name, content: outcome.content });
     }

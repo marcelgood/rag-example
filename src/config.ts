@@ -62,4 +62,12 @@ export const config = {
   sqlMaxRows: 100,
   // Safety stop: at most this many tool calls per question.
   sqlMaxToolCalls: 8,
+
+  // --- Evals ---
+
+  // The test questions and what a good answer must contain.
+  evalDocCasesPath: 'evals/doc-cases.json',
+  evalSqlCasesPath: 'evals/sql-cases.json',
+  // Each eval run saves a JSON report here (git-ignored), so runs can be compared.
+  evalResultsDir: 'evals/results',
 } as const; // `as const` keeps literal types, e.g. llmEffort is 'low', not string.

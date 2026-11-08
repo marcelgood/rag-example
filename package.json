@@ -8,7 +8,10 @@
     "ask": "node --env-file-if-exists=.env src/ask.ts",
     "typecheck": "tsc",
     "db:seed": "node src/sql/seed.ts",
-    "ask:sql": "node --env-file-if-exists=.env src/sql/ask-sql.ts"
+    "ask:sql": "node --env-file-if-exists=.env src/sql/ask-sql.ts",
+    "eval": "node --env-file-if-exists=.env src/eval/eval-docs.ts",
+    "eval:sql": "node --env-file-if-exists=.env src/eval/eval-sql.ts",
+    "eval:retrieval": "node src/eval/eval-docs.ts --retrieval-only"
   },
   "keywords": [],
   "author": "",

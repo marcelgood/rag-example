@@ -14,3 +14,6 @@ db/*.db-*
 .idea/
 .DS_Store
 Thumbs.db
+
+# Eval reports (one JSON file per run)
+evals/results/

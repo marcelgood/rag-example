@@ -27,24 +27,27 @@ export const SQL_PARAM_DESCRIPTION = 'A single SQLite SELECT statement.';
 
 export type ToolOutcome = { content: string; isError: boolean };
 
+/** Where progress lines go: the console by default, a list when running evals. */
+export type Log = (line: string) => void;
+
 /**
  * Run one tool call. `input` is whatever arguments the model sent, so it is
  * validated here. Errors go back to the model too, so it can fix its query.
  */
-export function executeRunSql(input: unknown): ToolOutcome {
+export function executeRunSql(input: unknown, log: Log = console.log): ToolOutcome {
   const sql = (input as { sql?: unknown } | null)?.sql;
   if (typeof sql !== 'string' || !sql.trim()) {
     return { content: 'Error: the "sql" argument must be a non-empty string.', isError: true };
   }
 
-  console.log(`\nSQL> ${sql.replace(/\s+/g, ' ').trim()}`);
+  log(`\nSQL> ${sql.replace(/\s+/g, ' ').trim()}`);
   try {
     const result = runQuery(sql);
-    console.log(`     ${result.totalRows} row(s)${result.truncated ? `, first ${config.sqlMaxRows} sent` : ''}`);
+    log(`     ${result.totalRows} row(s)${result.truncated ? `, first ${config.sqlMaxRows} sent` : ''}`);
     return { content: JSON.stringify(result), isError: false };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.log(`     error: ${message}`);
+    log(`     error: ${message}`);
     return { content: `Error: ${message}`, isError: true };
   }
 }

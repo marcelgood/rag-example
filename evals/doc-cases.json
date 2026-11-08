@@ -1,0 +1,104 @@
+{
+  "$comment": "Test cases for the document RAG pipeline (npm run eval). For answerable questions: expectedSource and expectedPassage say where the answer is (checks retrieval), mustInclude lists what the answer must say (each array inside is a list of acceptable alternatives). For questions the documents don't answer: expectRefusal.",
+  "cases": [
+    {
+      "id": "vacation-days",
+      "question": "How many vacation days do I get per year?",
+      "expectedSource": "employee-handbook.md",
+      "expectedPassage": "27 vacation days per year",
+      "mustInclude": ["27"]
+    },
+    {
+      "id": "vacation-carry-over",
+      "question": "Can I take unused vacation days into next year?",
+      "expectedSource": "employee-handbook.md",
+      "expectedPassage": "carry over until March 31",
+      "mustInclude": [["March 31", "31 March", "end of March"]]
+    },
+    {
+      "id": "home-office-paraphrase",
+      "question": "How much money can I spend on a desk and chair for working from home?",
+      "expectedSource": "employee-handbook.md",
+      "expectedPassage": "home-office budget of 600 euros",
+      "mustInclude": ["600"]
+    },
+    {
+      "id": "expense-approval",
+      "question": "Who has to approve a 700 euro expense?",
+      "expectedSource": "employee-handbook.md",
+      "expectedPassage": "Above 500 euros",
+      "mustInclude": ["team lead", "finance"]
+    },
+    {
+      "id": "work-abroad",
+      "question": "How long can I work from another country?",
+      "expectedSource": "employee-handbook.md",
+      "expectedPassage": "up to 30 days per calendar year",
+      "mustInclude": ["30 days"]
+    },
+    {
+      "id": "on-call-escalation",
+      "question": "Who gets paged if the on-call engineer doesn't respond?",
+      "expectedSource": "incident-runbook.txt",
+      "expectedPassage": "escalates automatically to the secondary",
+      "mustInclude": ["secondary", "engineering manager"]
+    },
+    {
+      "id": "sev1-status-page",
+      "question": "How quickly must the status page be updated during a SEV1?",
+      "expectedSource": "incident-runbook.txt",
+      "expectedPassage": "status page update within 15 minutes",
+      "mustInclude": ["15 minutes"]
+    },
+    {
+      "id": "postmortem-deadline",
+      "question": "When is the postmortem due after a SEV2 incident?",
+      "expectedSource": "incident-runbook.txt",
+      "expectedPassage": "written within five working days",
+      "mustInclude": [["five working days", "5 working days", "five business days", "5 business days"]]
+    },
+    {
+      "id": "battery-life",
+      "question": "How long does the Rootline battery last?",
+      "expectedSource": "product-faq.md",
+      "expectedPassage": "lasts about five years",
+      "mustInclude": [["five years", "5 years"]]
+    },
+    {
+      "id": "battery-short-interval",
+      "question": "What happens to battery life if the sensor takes a reading every 5 minutes?",
+      "expectedSource": "product-faq.md",
+      "expectedPassage": "roughly two years",
+      "mustInclude": [["two years", "2 years"]]
+    },
+    {
+      "id": "gateway-capacity",
+      "question": "How many sensors can one gateway serve?",
+      "expectedSource": "product-faq.md",
+      "expectedPassage": "can serve up to 200 sensors",
+      "mustInclude": ["200"]
+    },
+    {
+      "id": "warranty-tractor",
+      "question": "My sensor was run over by a tractor. Is that covered by the warranty?",
+      "expectedSource": "product-faq.md",
+      "expectedPassage": "Damage from machinery",
+      "mustInclude": [["not covered", "isn't covered", "is not covered", "not be covered", "excluded"]]
+    },
+    {
+      "id": "unanswerable-ceo",
+      "question": "What is the CEO's name?",
+      "expectRefusal": true
+    },
+    {
+      "id": "unanswerable-company-car",
+      "question": "Do employees get a company car?",
+      "expectRefusal": true
+    },
+    {
+      "id": "unanswerable-sensor-weight",
+      "question": "How much does a Rootline sensor weigh?",
+      "expectRefusal": true
+    }
+  ]
+}

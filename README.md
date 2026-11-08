@@ -114,3 +114,57 @@ Things to try:
 - Ambiguous questions ("How are sales going?") and see which assumptions the model states.
 - Remove a comment from `db/schema.sql`, such as the explanation of order statuses, and ask about "unpaid invoices" again.
 - Ask it to change data ("Mark order 5 as paid"). The authorizer blocks the write, even if the model tries.
+
+## Part 3: evaluating answer quality (evals)
+
+Trying a few questions by hand tells you little: an LLM can answer one question well and the next one badly, and a change that fixes one answer can quietly break another. An **eval** is a fixed set of test questions with a definition of "correct" for each, run automatically. It turns "seems better" into a number you can compare before and after a change.
+
+```bash
+npm run eval:retrieval   # retrieval only, no LLM, a few seconds
+npm run eval             # document questions: retrieval + answers
+npm run eval:sql         # database questions
+```
+
+Each run prints a line per question (✓ or ✗ with the reason), a summary, and saves everything (questions, answers, retrieved chunks, checks) to `evals/results/` as JSON, so you can read failed answers and compare runs.
+
+### The three parts of an eval
+
+1. **Test cases** (`evals/*.json`): realistic questions, including ones the data can't answer and ones that try to trick the model. 15–30 good cases go a long way; add a case every time you find a bad answer.
+2. **Graders** (`src/eval/checks.ts`): code that decides pass or fail. Here they're simple text checks: does the answer mention "27"? Does it cite the right document? Does it say it couldn't find the answer?
+3. **A runner** (`src/eval/eval-docs.ts`, `eval-sql.ts`): runs the real pipeline on every case, applies the graders and adds up the results.
+
+### What gets measured
+
+**Documents:** retrieval and the answer are graded separately, because they fail for different reasons and are fixed in different places.
+
+| Measure | Meaning | If it's low, change |
+|---|---|---|
+| hit@1, hit@5 | Share of questions where the passage with the answer was the 1st chunk / in the top 5 | `chunkSize`, `chunkOverlap`, embedding model |
+| MRR | Average of 1/rank (1st = 1, 2nd = 0.5, missed = 0) | the same |
+| mentions the expected facts | The answer contains the facts in `mustInclude` | prompt, model |
+| cites the right document | At least one citation points to the expected file | prompt, model |
+| says it could not find the answer | For unanswerable questions: no invented answer | prompt (`SYSTEM_PROMPT` in `src/answer.ts`), model |
+
+**Database:** each case has a `referenceSql` query that a human wrote and checked. The eval runs it and checks that every value in its result (names, amounts, counts) appears in the model's answer. The right answers therefore come from the data, not from the test file. Only the answer is graded, not the model's SQL, because many different queries are correct.
+
+### How to use it
+
+1. Run the eval and note the score (the baseline).
+2. Change one thing: the prompt, `topK`, `chunkSize`, the model, or `llmProvider`.
+3. Run it again and compare. Read the failed answers in the JSON report, not just the score.
+
+Keep in mind:
+
+- **Results vary between runs.** The same model can pass a question once and fail it the next time. With 15 cases, one question is almost 7%, so don't trust a difference of one or two cases. Run twice when it matters.
+- **The graders can be wrong too.** A ✗ can mean the answer said "four weeks" where the check wanted "28 days". Read the answer before blaming the model, and add the wording to the case if it was fine.
+- **The checks are lenient on extra content.** An answer that lists the right customers plus a wrong one still passes `containsValues`. Add `mustNotInclude` for mistakes you've seen.
+
+### Next step: an LLM as the grader
+
+Text checks can't judge an open answer like "Summarize the remote work policy". For those, the usual approach is **LLM-as-judge**: a second model gets the question, the retrieved chunks, the answer and a short rubric, and returns pass or fail with a reason. Typical rubric questions:
+
+- **Correct:** does the answer agree with a reference answer?
+- **Faithful (grounded):** is every statement supported by the retrieved chunks? This catches invented details.
+- **Relevant:** does it answer the question that was asked?
+
+A judge should be at least as strong as the model being graded, and you should check its verdicts against your own on a few cases before trusting it. A 4B local model is not a reliable judge; Claude is.
