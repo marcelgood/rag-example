@@ -1,0 +1,16 @@
+# Dependencies (restored with npm install)
+node_modules/
+
+# Generated data (rebuilt with npm run ingest / npm run db:seed)
+.lancedb/
+db/*.db
+db/*.db-*
+
+# Secrets: never commit your API key
+.env
+
+# Editor and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

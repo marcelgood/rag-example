@@ -1,0 +1,19 @@
+LARKSPUR LABS — ON-CALL INCIDENT RUNBOOK (fictional)
+
+Severity levels
+
+SEV1: the cloud dashboard is down for all customers, or data is being lost. Page the on-call engineer immediately and open an incident channel named #inc-<date>-<short-name>. Post a status page update within 15 minutes.
+
+SEV2: a major feature is broken for many customers, for example alerts are not being sent, but no data is lost. The on-call engineer responds within 30 minutes during core hours and within 2 hours outside them.
+
+SEV3: a minor bug or a problem affecting a single customer. Create a ticket; it is handled during normal working hours.
+
+Who is on call
+
+On-call rotates weekly, starting Monday at 10:00. Each rotation has a primary and a secondary engineer. If the primary does not acknowledge a page within 10 minutes, it escalates automatically to the secondary, and after another 10 minutes to the engineering manager.
+
+On-call engineers receive a flat allowance of 250 euros per week, plus time off in lieu for any incident work done at night or on weekends.
+
+After an incident
+
+Every SEV1 and SEV2 incident gets a blameless postmortem, written within five working days. The postmortem lists the timeline, the root cause, and follow-up actions with an owner for each. Postmortems are shared with the whole company.

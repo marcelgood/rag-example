@@ -1,0 +1,40 @@
+{
+  "name": "rag",
+  "version": "1.0.0",
+  "description": "Learning example: RAG with Node.js, LanceDB and local embeddings",
+  "scripts": {
+    "ingest": "node src/ingest.ts",
+    "search": "node src/search.ts",
+    "ask": "node --env-file-if-exists=.env src/ask.ts",
+    "typecheck": "tsc",
+    "db:seed": "node src/sql/seed.ts",
+    "ask:sql": "node --env-file-if-exists=.env src/sql/ask-sql.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.6.0",
+    "@huggingface/transformers": "^4.3.2",
+    "@lancedb/lancedb": "^0.41.0",
+    "@langchain/textsplitters": "^1.0.2",
+    "ollama": "^0.6.4"
+  },
+  "overrides": {
+    "@lancedb/lancedb": {
+      "@huggingface/transformers": "$@huggingface/transformers"
+    }
+  },
+  "type": "module",
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "typescript": "^7.0.2"
+  },
+  "allowScripts": {
+    "onnxruntime-node": false,
+    "protobufjs": false
+  },
+  "engines": {
+    "node": ">=26"
+  }
+}

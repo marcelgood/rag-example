@@ -1,0 +1,21 @@
+{
+  // Node 26 runs .ts files directly by stripping the types, so there is no
+  // build step: tsc is only used to check the types (npm run typecheck).
+  "compilerOptions": {
+    "target": "esnext",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "types": ["node"],
+
+    // Required for Node's type stripping:
+    "noEmit": true,
+    "allowImportingTsExtensions": true, // imports use the real file name: './config.ts'
+    "verbatimModuleSyntax": true,       // type-only imports must say `import type`
+    "erasableSyntaxOnly": true,         // no enums/namespaces, which Node can't strip
+
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "skipLibCheck": true
+  },
+  "include": ["src"]
+}
