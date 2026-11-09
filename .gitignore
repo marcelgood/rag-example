@@ -17,3 +17,6 @@ Thumbs.db
 
 # Eval reports (one JSON file per run)
 evals/results/
+
+# Part 6: the signed-in session of the command-line client
+.auth/

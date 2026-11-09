@@ -68,6 +68,21 @@ export const config = {
   //   'ai-sdk'       - the Vercel AI SDK's generateText (src/ai-sdk/run.ts)
   agentLoop: 'hand-written' as 'hand-written' | 'ai-sdk',
 
+  // --- Multi-tenancy (Part 6) ---
+
+  // One database for all tenants: users (better-auth's tables), tenants, and
+  // every tenant's sales data in shared tables with a tenant_id column.
+  tenantDbPath: 'db/tenants.db',
+  tenantSchemaPath: 'db/tenant-schema.sql',
+  // The auth server signs in users and issues access tokens (JWTs).
+  authServerUrl: 'http://localhost:3100',
+  // The MCP server only accepts tokens issued for this URL (the token's audience).
+  mcpServerUrl: 'http://localhost:3200/mcp',
+  // How long an access token is valid. Short, because it can't be revoked.
+  accessTokenLifetime: '15m',
+  // The client keeps its session here (git-ignored). Like a browser cookie.
+  sessionFilePath: '.auth/session.json',
+
   // --- Evals ---
 
   // The test questions and what a good answer must contain.

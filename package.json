@@ -15,7 +15,14 @@
     "ask:mcp": "node --env-file-if-exists=.env src/mcp/ask-mcp.ts",
     "eval:mcp": "node --env-file-if-exists=.env src/eval/eval-sql.ts --mcp",
     "mcp:server": "node src/mcp/server.ts",
-    "ask:ai-sdk": "node --env-file-if-exists=.env src/ai-sdk/ask-mcp.ts"
+    "ask:ai-sdk": "node --env-file-if-exists=.env src/ai-sdk/ask-mcp.ts",
+    "tenant:seed": "node src/tenant/seed.ts",
+    "tenant:servers": "node src/tenant/start-servers.ts",
+    "login": "node src/tenant/login.ts",
+    "logout": "node src/tenant/logout.ts",
+    "ask:tenant": "node --env-file-if-exists=.env src/tenant/ask.ts",
+    "eval:tenant": "node --env-file-if-exists=.env src/eval/eval-tenant.ts",
+    "eval:tenant:security": "node src/eval/eval-tenant.ts --security-only"
   },
   "keywords": [],
   "author": "",
@@ -24,6 +31,7 @@
     "@ai-sdk/anthropic": "^4.0.99",
     "@ai-sdk/mcp": "^2.0.93",
     "@anthropic-ai/sdk": "^1.6.0",
+    "@hono/node-server": "^2.1.6",
     "@huggingface/transformers": "^4.3.2",
     "@lancedb/lancedb": "^0.41.0",
     "@langchain/textsplitters": "^1.0.2",
@@ -31,6 +39,9 @@
     "@modelcontextprotocol/server": "^2.4.0",
     "ai": "^7.0.166",
     "ai-sdk-ollama": "^4.6.3",
+    "better-auth": "^1.7.18",
+    "hono": "^4.13.17",
+    "jose": "^6.2.17",
     "ollama": "^0.6.4",
     "zod": "^4.6.7"
   },
