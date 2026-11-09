@@ -4,6 +4,27 @@ A small, readable example of Retrieval-Augmented Generation (RAG): an **ingestio
 
 The LLM is either a free local model through [Ollama](https://ollama.com) or Claude through the API. Set `llmProvider` in `src/config.ts`.
 
+## Contents
+
+- **Part 1: RAG over documents**
+  - [How RAG works](#how-rag-works)
+  - [The pieces](#the-pieces)
+  - [Files](#files)
+  - [Setup](#setup)
+  - [Ask questions](#ask-questions)
+  - [Things to try](#things-to-try)
+- [**Part 2: questions over a relational database (text-to-SQL)**](#part-2-questions-over-a-relational-database-text-to-sql)
+- [**Part 3: evaluating answer quality (evals)**](#part-3-evaluating-answer-quality-evals)
+  - [The three parts of an eval](#the-three-parts-of-an-eval)
+  - [What gets measured](#what-gets-measured)
+  - [How to use it](#how-to-use-it)
+  - [Next step: an LLM as the grader](#next-step-an-llm-as-the-grader)
+- [**Part 4: the database tools as an MCP server**](#part-4-the-database-tools-as-an-mcp-server)
+  - [Purpose-built tools instead of SQL](#purpose-built-tools-instead-of-sql)
+  - [Run it](#run-it)
+  - [What the eval showed](#what-the-eval-showed)
+  - [Use the server from Claude Code](#use-the-server-from-claude-code)
+
 ## How RAG works
 
 ```
