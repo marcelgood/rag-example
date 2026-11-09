@@ -2,6 +2,7 @@
 // shared by `npm run ask` and `npm run ask:sql`.
 
 import Anthropic from '@anthropic-ai/sdk';
+import { APICallError, RetryError } from 'ai';
 import { config } from '../config.ts';
 import { OllamaSetupError } from './ollama.ts';
 
@@ -21,6 +22,13 @@ export function describeLlmError(error: unknown): string | undefined {
   if (error instanceof Anthropic.AuthenticationError) return 'Authentication failed. Check the key in your .env file.';
   if (error instanceof Anthropic.RateLimitError) return 'Rate limited by the API. Wait a moment and try again.';
   if (error instanceof Anthropic.APIError) return `API error ${error.status}: ${error.message}`;
+  // The same failures through the Vercel AI SDK (Part 5). It retries failed
+  // calls first, then throws a RetryError wrapping the last one.
+  const aiError = RetryError.isInstance(error) ? error.lastError : error;
+  if (APICallError.isInstance(aiError)) {
+    if (aiError.statusCode === 401) return 'Authentication failed. Check the key in your .env file.';
+    return `API error ${aiError.statusCode ?? ''}: ${aiError.message}`;
+  }
   if (config.llmProvider === 'ollama' && error instanceof Error) return `Ollama error: ${error.message}`;
   return undefined;
 }

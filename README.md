@@ -1,6 +1,6 @@
 # RAG example in Node.js
 
-A small, readable example of Retrieval-Augmented Generation (RAG): an **ingestion pipeline** that turns documents into searchable vectors, and a **query pipeline** that answers questions from them with an LLM, citing its sources. Part 2 does the same for a relational database (text-to-SQL), Part 3 measures answer quality with evals, and Part 4 moves the database tools into an MCP server.
+A small, readable example of Retrieval-Augmented Generation (RAG): an **ingestion pipeline** that turns documents into searchable vectors, and a **query pipeline** that answers questions from them with an LLM, citing its sources. Part 2 does the same for a relational database (text-to-SQL), Part 3 measures answer quality with evals, Part 4 moves the database tools into an MCP server, and Part 5 replaces the hand-written tool loop with the Vercel AI SDK.
 
 The LLM is either a free local model through [Ollama](https://ollama.com) or Claude through the API. Set `llmProvider` in `src/config.ts`.
 
@@ -24,6 +24,10 @@ The LLM is either a free local model through [Ollama](https://ollama.com) or Cla
   - [Run it](#run-it)
   - [What the eval showed](#what-the-eval-showed)
   - [Use the server from Claude Code](#use-the-server-from-claude-code)
+- [**Part 5: the tool loop with the Vercel AI SDK**](#part-5-the-tool-loop-with-the-vercel-ai-sdk)
+  - [Two ways to use it](#two-ways-to-use-it)
+  - [What the AI SDK does for you](#what-the-ai-sdk-does-for-you)
+  - [Other options](#other-options)
 
 ## How RAG works
 
@@ -126,7 +130,7 @@ Every query the model runs is printed, so you can check its SQL.
 | `src/sql/seed.ts` | Creates `db/larkspur.db` with made-up customers and orders, using Node's built-in `node:sqlite`. |
 | `src/sql/database.ts` | Runs the model's SQL safely: read-only connection, an authorizer that only allows reads (no writes, `ATTACH` or `PRAGMA`), and a row limit. |
 | `src/sql/tool.ts` | The system prompt, the `run_sql` tool definition, and running one tool call (including checking its arguments). |
-| `src/agent/ollama.ts`, `claude.ts` | The tool-use loop for each provider, written by hand to show how it works. Same idea, different message formats. Shared with Part 4. |
+| `src/agent/ollama.ts`, `claude.ts` | The tool-use loop for each provider, written by hand to show how it works. Same idea, different message formats. Shared with Part 4; Part 5 replaces them with a library. |
 | `src/sql/ask-sql.ts` | The command line entry point. |
 
 Things to try:
@@ -254,3 +258,58 @@ claude mcp add larkspur-sales -- "C:/Users/<you>/AppData/Local/nvs/node/26.13.0/
 ```
 
 Then ask Claude Code something like "Using the larkspur-sales tools, which customers owe us money?". Claude Desktop works the same way through its MCP server settings.
+
+## Part 5: the tool loop with the Vercel AI SDK
+
+Parts 2 and 4 run the tool loop by hand (`src/agent/claude.ts` and `ollama.ts`): send the question and tools, run the tools the model asks for, send the results back, and repeat until it answers. That's the best way to see how tool use works, but real projects rarely write it themselves. The loop is the same in every app, so libraries do it.
+
+Part 5 uses the [Vercel AI SDK](https://ai-sdk.dev) (the `ai` package), a provider-neutral TypeScript library. One call, `generateText`, runs the whole loop, and the same code works with Claude and Ollama:
+
+```ts
+const result = await generateText({
+  model: languageModel(),              // Claude or Ollama, see src/ai-sdk/model.ts
+  system,
+  prompt: question,
+  tools,                               // each with a schema and an execute function
+  stopWhen: isStepCount(8),            // the safety stop
+});
+console.log(result.text);
+```
+
+### Two ways to use it
+
+**1. As a drop-in replacement for the hand-written loops.** Set `agentLoop: 'ai-sdk'` in `src/config.ts`, and `ask:sql`, `ask:mcp`, `eval:sql` and `eval:mcp` run through `src/ai-sdk/run.ts` instead. It takes the same `Agent` (system prompt, tools, `runTool`), so nothing else changes, and the evals compare the two loops directly.
+
+**2. The usual way, AI SDK end to end.** `src/ai-sdk/ask-mcp.ts` is Part 4 in one file. The AI SDK's MCP client (`@ai-sdk/mcp`) starts the server and turns its tools straight into AI SDK tools, so `src/mcp/client.ts` and the `Agent` type aren't needed at all:
+
+```bash
+npm run ask:ai-sdk -- "Which customers have overdue invoices, and how much do they owe?"
+```
+
+| File | What it does |
+|---|---|
+| `src/ai-sdk/model.ts` | Picks the model: `@ai-sdk/anthropic` for Claude, the community provider `ai-sdk-ollama` for Ollama. The only provider-specific code. |
+| `src/ai-sdk/run.ts` | The drop-in loop: turns our tools into AI SDK tools and calls `generateText`. Replaces both hand-written loops. |
+| `src/ai-sdk/ask-mcp.ts` | Part 4 written the usual way with the AI SDK's MCP client |
+
+### What the AI SDK does for you
+
+| | Hand-written (`src/agent/`) | AI SDK |
+|---|---|---|
+| The loop | Our `for` loop, one per provider | `generateText` with `stopWhen` |
+| Message formats | Anthropic's `tool_use` / `tool_result` blocks, Ollama's `role: 'tool'` messages | Hidden; one format for every provider |
+| Tool errors | We send `is_error` back | A tool that throws becomes a tool error the model sees |
+| Switching providers | A second loop file | Change the model object |
+| MCP tools | Our client converts them (`src/mcp/client.ts`) | `await mcpClient.tools()` |
+| Seeing what happens | Everything is in our code | Callbacks such as `onToolExecutionStart`, and `result.steps` |
+
+The eval scores were the same with both loops on the local model: 8/9 for `eval:sql` and 9/9 for `eval:mcp`. That's expected: the loop only moves messages back and forth, and the model and the tool design decide the answers. The one failure was the model writing invalid SQL twice in a row, and it failed the same way with the hand-written loop.
+
+The cost of a library is less control and one more thing to keep up to date. Its API changes between major versions (this uses v7), and details like which features each provider supports depend on the provider package. In return you get retries, streaming (`streamText`), structured output, tool approval and tracing without writing them.
+
+### Other options
+
+- **The provider's own tool runner**, such as the Anthropic SDK's `client.beta.messages.toolRunner`. Less to learn, but it only works with that provider.
+- **LangChain / LangGraph**: more built in (memory, multi-step graphs, tracing), and more to learn.
+- **Agent frameworks** such as the Claude Agent SDK, for long-running agents that work with files and shells.
+- **Loops that run on the provider's servers**, such as the Claude API's MCP connector, where you pass the URL of a remote MCP server and Anthropic calls the tools. That needs an MCP server reachable over HTTP, not stdio.

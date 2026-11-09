@@ -63,6 +63,11 @@ export const config = {
   // Safety stop for the tool-using agents (Parts 2 and 4): at most this many tool calls per question.
   maxToolCalls: 8,
 
+  // Who runs the tool-use loop for Parts 2 and 4 (see Part 5 in the README):
+  //   'hand-written' - our own loops in src/agent/claude.ts and src/agent/ollama.ts
+  //   'ai-sdk'       - the Vercel AI SDK's generateText (src/ai-sdk/run.ts)
+  agentLoop: 'hand-written' as 'hand-written' | 'ai-sdk',
+
   // --- Evals ---
 
   // The test questions and what a good answer must contain.

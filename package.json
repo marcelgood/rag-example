@@ -14,18 +14,23 @@
     "eval:retrieval": "node src/eval/eval-docs.ts --retrieval-only",
     "ask:mcp": "node --env-file-if-exists=.env src/mcp/ask-mcp.ts",
     "eval:mcp": "node --env-file-if-exists=.env src/eval/eval-sql.ts --mcp",
-    "mcp:server": "node src/mcp/server.ts"
+    "mcp:server": "node src/mcp/server.ts",
+    "ask:ai-sdk": "node --env-file-if-exists=.env src/ai-sdk/ask-mcp.ts"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@ai-sdk/anthropic": "^4.0.99",
+    "@ai-sdk/mcp": "^2.0.93",
     "@anthropic-ai/sdk": "^1.6.0",
     "@huggingface/transformers": "^4.3.2",
     "@lancedb/lancedb": "^0.41.0",
     "@langchain/textsplitters": "^1.0.2",
     "@modelcontextprotocol/client": "^2.4.0",
     "@modelcontextprotocol/server": "^2.4.0",
+    "ai": "^7.0.166",
+    "ai-sdk-ollama": "^4.6.3",
     "ollama": "^0.6.4",
     "zod": "^4.6.7"
   },
