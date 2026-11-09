@@ -60,8 +60,8 @@ export const config = {
   sqlSchemaPath: 'db/schema.sql',
   // At most this many rows of a query result go back to the model.
   sqlMaxRows: 100,
-  // Safety stop: at most this many tool calls per question.
-  sqlMaxToolCalls: 8,
+  // Safety stop for the tool-using agents (Parts 2 and 4): at most this many tool calls per question.
+  maxToolCalls: 8,
 
   // --- Evals ---
 
@@ -71,3 +71,6 @@ export const config = {
   // Each eval run saves a JSON report here (git-ignored), so runs can be compared.
   evalResultsDir: 'evals/results',
 } as const; // `as const` keeps literal types, e.g. llmEffort is 'low', not string.
+
+/** The model that answers, for display: "claude-opus-5-5" or "qwen3:4b-instruct via Ollama". */
+export const modelLabel = () => (config.llmProvider === 'claude' ? config.llmModel : `${config.ollamaModel} via Ollama`);

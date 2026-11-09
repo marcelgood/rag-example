@@ -1,7 +1,7 @@
 // The query pipeline: QUESTION -> EMBED -> RETRIEVE -> GENERATE.
 // Run with: npm run ask -- "your question"
 
-import { config } from './config.ts';
+import { config, modelLabel } from './config.ts';
 import { embedText } from './embed.ts';
 import { searchChunks } from './store.ts';
 import { answerQuestion } from './answer.ts';
@@ -24,8 +24,7 @@ for (const c of chunks) {
   console.log(`  - ${c.source} (chunk ${c.chunkIndex}), similarity ${(1 - c._distance).toFixed(3)}`);
 }
 
-const model = config.llmProvider === 'claude' ? config.llmModel : `${config.ollamaModel} via Ollama`;
-console.log(`\nAsking ${model}...`);
+console.log(`\nAsking ${modelLabel()}...`);
 const started = Date.now();
 
 try {

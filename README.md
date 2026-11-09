@@ -1,6 +1,6 @@
 # RAG example in Node.js
 
-A small, readable example of Retrieval-Augmented Generation (RAG): an **ingestion pipeline** that turns documents into searchable vectors, and a **query pipeline** that answers questions from them with an LLM, citing its sources. Part 2 does the same for a relational database (text-to-SQL).
+A small, readable example of Retrieval-Augmented Generation (RAG): an **ingestion pipeline** that turns documents into searchable vectors, and a **query pipeline** that answers questions from them with an LLM, citing its sources. Part 2 does the same for a relational database (text-to-SQL), Part 3 measures answer quality with evals, and Part 4 moves the database tools into an MCP server.
 
 The LLM is either a free local model through [Ollama](https://ollama.com) or Claude through the API. Set `llmProvider` in `src/config.ts`.
 
@@ -104,8 +104,8 @@ Every query the model runs is printed, so you can check its SQL.
 | `db/schema.sql` | The tables. Its comments are also sent to the model as column descriptions, which is the biggest factor in query accuracy. |
 | `src/sql/seed.ts` | Creates `db/larkspur.db` with made-up customers and orders, using Node's built-in `node:sqlite`. |
 | `src/sql/database.ts` | Runs the model's SQL safely: read-only connection, an authorizer that only allows reads (no writes, `ATTACH` or `PRAGMA`), and a row limit. |
-| `src/sql/tool.ts` | The system prompt, the tool description, and running one tool call (including checking its arguments). |
-| `src/sql/agent-ollama.ts`, `agent-claude.ts` | The tool-use loop for each provider, written by hand to show how it works. Same idea, different message formats. |
+| `src/sql/tool.ts` | The system prompt, the `run_sql` tool definition, and running one tool call (including checking its arguments). |
+| `src/agent/ollama.ts`, `claude.ts` | The tool-use loop for each provider, written by hand to show how it works. Same idea, different message formats. Shared with Part 4. |
 | `src/sql/ask-sql.ts` | The command line entry point. |
 
 Things to try:
@@ -168,3 +168,68 @@ Text checks can't judge an open answer like "Summarize the remote work policy". 
 - **Relevant:** does it answer the question that was asked?
 
 A judge should be at least as strong as the model being graded, and you should check its verdicts against your own on a few cases before trusting it. A 4B local model is not a reliable judge; Claude is.
+
+## Part 4: the database tools as an MCP server
+
+In Part 2 the `run_sql` tool is a function in the same Node process as the agent. The [Model Context Protocol](https://modelcontextprotocol.io) (MCP) moves tools into a separate program, an **MCP server**, that any MCP client can use: this project's agent, Claude Code, Claude Desktop, and others.
+
+```
+agent (MCP client) ── starts ──▶ src/mcp/server.ts (MCP server) ──▶ db/larkspur.db
+        │   ◀── listTools: names, descriptions, JSON Schemas ──┘
+        └── callTool("sales_summary", {groupBy: "country", status: "paid", year: 2025}) ──▶ rows as JSON
+```
+
+The model loop doesn't change; only where the tools come from does. The client in `src/mcp/client.ts` contains no tool names, schemas or SQL: it asks the server at runtime.
+
+### Purpose-built tools instead of SQL
+
+The server doesn't take SQL. It offers four tools that match the business, each with typed parameters:
+
+| Tool | What it does |
+|---|---|
+| `sales_summary` | Totals and order counts, optionally grouped by country, customer, product, month or status, and filtered by status, year, product, country |
+| `list_orders` | Individual orders with customer, date, status and amount |
+| `get_order` | One order with its line items |
+| `list_customers` | Customers with country, region and sign-up date |
+
+The SQL is written in the server, and the model's values only go in as `?` parameters, so the model can't change what a query does. Invalid arguments (an unknown `groupBy`, a year as text) are rejected by the schema before any code runs.
+
+| | Part 2: `run_sql` | Part 4: purpose-built tools |
+|---|---|---|
+| Questions it can answer | Anything the schema allows | Only what the tools were designed for |
+| Safety | Needs a read-only connection, an authorizer and a row limit | Safe by design: no model-written SQL |
+| What the model must do | Write correct SQL | Pick a tool and fill in a few fields |
+| Typical use | Analysts exploring data | Production apps and shared MCP servers |
+
+### Run it
+
+```bash
+npm run ask:mcp -- "What was the revenue per country in 2025?"
+npm run eval:mcp
+```
+
+`eval:mcp` runs the same questions as `eval:sql` (`evals/sql-cases.json`), so you can compare the two approaches directly.
+
+| File | What it does |
+|---|---|
+| `src/mcp/server.ts` | The MCP server: the four tools (Zod schemas, fixed SQL) and server instructions such as "revenue means paid orders" |
+| `src/mcp/client.ts` | Starts the server, lists its tools, puts its instructions in the system prompt, forwards tool calls |
+| `src/mcp/ask-mcp.ts` | The command line entry point |
+| `src/agent/` | The tool-use loops, shared with Part 2 |
+
+Uses the official MCP TypeScript SDK v2 (`@modelcontextprotocol/server` and `@modelcontextprotocol/client`), with stdio as the transport: the client starts the server as a child process and they exchange JSON-RPC messages over stdin and stdout. That is also why the server must never write to stdout with `console.log`.
+
+
+### What the eval showed
+
+The first version made `groupBy` and `status` optional. The local model scored 7/9: it summed every status when asked for revenue, and returned one grand total when asked which customers owe money. Making both parameters required, so the model must choose explicitly, raised it to 9/9 in two runs in a row. Tool design is prompt design: names, descriptions and which fields are required matter as much as the system prompt.
+
+### Use the server from Claude Code
+
+Because it's a standard MCP server, other MCP clients can use it too. To add it to Claude Code (use the full path to Node 26, since the server is TypeScript run directly by Node):
+
+```bash
+claude mcp add larkspur-sales -- "C:/Users/<you>/AppData/Local/nvs/node/26.13.0/x64/node.exe" "C:/Workspace/AI/RAG/src/mcp/server.ts"
+```
+
+Then ask Claude Code something like "Using the larkspur-sales tools, which customers owe us money?". Claude Desktop works the same way through its MCP server settings.

@@ -11,7 +11,10 @@
     "ask:sql": "node --env-file-if-exists=.env src/sql/ask-sql.ts",
     "eval": "node --env-file-if-exists=.env src/eval/eval-docs.ts",
     "eval:sql": "node --env-file-if-exists=.env src/eval/eval-sql.ts",
-    "eval:retrieval": "node src/eval/eval-docs.ts --retrieval-only"
+    "eval:retrieval": "node src/eval/eval-docs.ts --retrieval-only",
+    "ask:mcp": "node --env-file-if-exists=.env src/mcp/ask-mcp.ts",
+    "eval:mcp": "node --env-file-if-exists=.env src/eval/eval-sql.ts --mcp",
+    "mcp:server": "node src/mcp/server.ts"
   },
   "keywords": [],
   "author": "",
@@ -21,7 +24,10 @@
     "@huggingface/transformers": "^4.3.2",
     "@lancedb/lancedb": "^0.41.0",
     "@langchain/textsplitters": "^1.0.2",
-    "ollama": "^0.6.4"
+    "@modelcontextprotocol/client": "^2.4.0",
+    "@modelcontextprotocol/server": "^2.4.0",
+    "ollama": "^0.6.4",
+    "zod": "^4.6.7"
   },
   "overrides": {
     "@lancedb/lancedb": {

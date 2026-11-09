@@ -6,8 +6,10 @@
 // results, and answers from them. It may run several queries, e.g. one to
 // look at the data and one for the real answer.
 
-import { config } from '../config.ts';
+import { modelLabel } from '../config.ts';
+import { runAgent } from '../agent/run.ts';
 import { exitIfMissingCredentials, handleLlmError } from '../llm/errors.ts';
+import { createSqlAgent } from './tool.ts';
 
 const question = process.argv.slice(2).join(' ');
 if (!question) {
@@ -16,15 +18,11 @@ if (!question) {
 }
 exitIfMissingCredentials();
 
-const model = config.llmProvider === 'claude' ? config.llmModel : `${config.ollamaModel} via Ollama`;
-console.log(`Question: ${question}\nAsking ${model}...`);
+console.log(`Question: ${question}\nAsking ${modelLabel()}...`);
 const started = Date.now();
 
 try {
-  const answer =
-    config.llmProvider === 'claude'
-      ? await (await import('./agent-claude.ts')).askClaude(question)
-      : await (await import('./agent-ollama.ts')).askOllama(question);
+  const answer = await runAgent(createSqlAgent(), question);
   console.log(`\nAnswer:\n${answer}\n\n(${((Date.now() - started) / 1000).toFixed(1)}s)`);
 } catch (error) {
   handleLlmError(error);
