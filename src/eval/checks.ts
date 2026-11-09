@@ -41,12 +41,26 @@ export function mentionsNone(text: string, forbidden: string[]): CheckResult {
 
 // Common ways a model says it doesn't know. Models phrase this in many ways,
 // so this list is a heuristic; check failures by reading the answer.
-const DOES_NOT_KNOW =
-  /could ?n[o']t find|can ?n[o']t find|unable to (find|answer|determine)|no information|not (mentioned|specified|stated|included|provided|available|found|possible)|(does|do|did)( not|n't) (contain|mention|say|include|specify|have|provide|cover|store)|can ?n[o']t (be )?(answer|determine|calculat)|there is no (data|information)/;
+// Each pattern is one way of saying it; the text is normalized first
+// (lowercase, straight apostrophes). When a correct answer fails this check,
+// add its wording here. Unanswerable answers often go on to give partial
+// facts (Claude listed sensor revenue), so the check only asks whether the
+// answer says it can't answer, not that it says nothing else.
+const DOES_NOT_KNOW = [
+  // "I can't work out…", "I couldn't find…", "unable to determine…"
+  /\b(cannot|can't|can not|could not|couldn't|unable to|not able to|no way to)( be)? (find|found|answer|determine|calculate|compute|work out|worked out|tell|say|give|provide|know)/,
+  // "The documents don't mention…", "the database does not contain…"
+  /\b(does|do|did)( not|n't) (contain|mention|say|include|specify|have|provide|cover|store|list|track|record)/,
+  // "…is not mentioned", "isn't possible"
+  /\b(not|n't) (mentioned|specified|stated|included|provided|available|found|possible|recorded|tracked)\b/,
+  // "There is no information…", "no cost data"
+  /\bno (information|data|record|mention|details)\b|\bno [a-z]+ (data|information)\b/,
+];
 
 /** The answer says the information isn't available, instead of guessing. */
 export function saysItDoesNotKnow(text: string): CheckResult {
-  const pass = DOES_NOT_KNOW.test(normalize(text));
+  const normalized = normalize(text);
+  const pass = DOES_NOT_KNOW.some((pattern) => pattern.test(normalized));
   return { name: 'says it could not find the answer', pass, detail: pass ? undefined : 'gave an answer instead' };
 }
 
