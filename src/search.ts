@@ -1,23 +1,24 @@
-// Sanity check for the ingestion: search the stored chunks by meaning.
+// Sanity check for the ingestion: search the stored chunks.
 // This is the "R" (retrieval) in RAG, without the LLM yet.
-// Run with: npm run search -- "your question"
+// Run with: npx agent search "your question"
+//      or:  npx agent search --method hybrid-rerank "your question"   (Part 7)
 
-import { embedText } from './embed.ts';
-import { searchChunks } from './store.ts';
+import { parseMethodArgs, retrieve, SCORE_LABELS } from './retrieve.ts';
 
-const query = process.argv.slice(2).join(' ');
+const { method, rest } = parseMethodArgs(process.argv.slice(2));
+const query = rest.join(' ');
 if (!query) {
-  console.error('Usage: npm run search -- "your question"');
+  console.error('Usage: npx agent search [--method <name>] "your question"');
   process.exit(1);
 }
 
-const results = await searchChunks(await embedText(query), 3);
+const results = await retrieve(query, 3, method);
+const label = SCORE_LABELS[method];
 
-console.log(`Query: ${query}\n`);
-for (const r of results) {
-  // Cosine distance: 0 = same direction (very similar), 1 = unrelated.
-  const similarity = (1 - r._distance).toFixed(3);
+console.log(`Query: ${query}\nMethod: ${method}\n`);
+results.forEach((r, i) => {
+  const score = label && r.score !== undefined ? `${label} ${r.score.toFixed(3)}` : `rank ${i + 1}`;
   const preview = r.text.replace(/\s+/g, ' ').slice(0, 220);
-  console.log(`[similarity ${similarity}] ${r.source} (chunk ${r.chunkIndex})`);
+  console.log(`[${score}] ${r.source} (chunk ${r.chunkIndex})`);
   console.log(`  ${preview}${r.text.length > 220 ? '…' : ''}\n`);
-}
+});

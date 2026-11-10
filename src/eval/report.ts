@@ -18,6 +18,12 @@ export function loadCases<T extends { id: string; question: string }>(file: stri
 
 export const hasFlag = (flag: string) => process.argv.includes(flag);
 
+/** The value after a flag, e.g. "hybrid" for `--method hybrid`. */
+export function flagValue(flag: string): string | undefined {
+  const index = process.argv.indexOf(flag);
+  return index >= 0 ? process.argv[index + 1] : undefined;
+}
+
 export const percent = (part: number, total: number) => (total ? `${Math.round((100 * part) / total)}%` : 'n/a');
 
 export const modelName = () => (config.llmProvider === 'claude' ? config.llmModel : config.ollamaModel);

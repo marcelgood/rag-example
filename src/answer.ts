@@ -4,7 +4,7 @@
 // config.llmProvider picks the implementation.
 
 import { config } from './config.ts';
-import type { SearchResult } from './store.ts';
+import type { ChunkText } from './store.ts';
 
 export type Source = {
   /** The number shown as [n] in the answer text. */
@@ -22,14 +22,14 @@ export type Answer = {
   outputTokens: number;
 };
 
-export type AnswerFunction = (question: string, chunks: SearchResult[]) => Promise<Answer>;
+export type AnswerFunction = (question: string, chunks: ChunkText[]) => Promise<Answer>;
 
 export const SYSTEM_PROMPT = `You answer questions using only the documents provided with the question. \
 They are excerpts retrieved from a company knowledge base and may not all be relevant. \
 If the documents do not contain the answer, say that you could not find it rather than guessing. \
 Keep answers short and direct.`;
 
-export async function answerQuestion(question: string, chunks: SearchResult[]): Promise<Answer> {
+export async function answerQuestion(question: string, chunks: ChunkText[]): Promise<Answer> {
   // Load the provider's module on demand. (A static import would be circular:
   // both provider modules import SYSTEM_PROMPT and the types from this file.)
   const { answer } =

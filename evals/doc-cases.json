@@ -99,6 +99,107 @@
       "id": "unanswerable-sensor-weight",
       "question": "How much does a Rootline sensor weigh?",
       "expectRefusal": true
+    },
+    {
+      "id": "error-err-07",
+      "question": "What does error ERR-07 mean?",
+      "expectedSource": "troubleshooting-codes.md",
+      "expectedPassage": "ERR-07 Moisture probe fault",
+      "mustInclude": ["probe"]
+    },
+    {
+      "id": "error-gw-30",
+      "question": "What should I do about a GW-30 error?",
+      "expectedSource": "troubleshooting-codes.md",
+      "expectedPassage": "GW-30 Too many sensors",
+      "mustInclude": [["second gateway", "another gateway", "additional gateway", "more gateways", "extra gateway"]]
+    },
+    {
+      "id": "firmware-3-2-1",
+      "question": "What changed in sensor firmware 3.2.1?",
+      "expectedSource": "release-notes.md",
+      "expectedPassage": "Fixes the ERR-12 clock drift",
+      "mustInclude": [["clock drift", "ERR-12"]]
+    },
+    {
+      "id": "guest-wifi",
+      "question": "What is the guest Wi-Fi network called?",
+      "expectedSource": "lisbon-office-guide.md",
+      "expectedPassage": "Guests use LARKSPUR-GUEST",
+      "mustInclude": ["LARKSPUR-GUEST"]
+    },
+    {
+      "id": "solar-kit",
+      "question": "How long does the gateway keep running on the RL-SOLAR-KIT without sun?",
+      "expectedSource": "gateway-installation-guide.md",
+      "expectedPassage": "running for three days without sun",
+      "mustInclude": [["three days", "3 days"]]
+    },
+    {
+      "id": "hotel-munich",
+      "question": "What is the maximum hotel price per night in Munich?",
+      "expectedSource": "travel-policy.md",
+      "expectedPassage": "190 euros in London, Paris, Zurich and Munich",
+      "mustInclude": ["190"]
+    },
+    {
+      "id": "suspicious-email",
+      "question": "I got a weird email asking me to pay an invoice. What should I do?",
+      "expectedSource": "security-policy.md",
+      "expectedPassage": "Forward it to security@larkspur.test",
+      "mustInclude": ["security@larkspur.test"]
+    },
+    {
+      "id": "gateway-blinking-orange",
+      "question": "The light on the gateway is blinking orange. What's wrong?",
+      "expectedSource": "gateway-installation-guide.md",
+      "expectedPassage": "the cloud dashboard rejects the gateway",
+      "mustInclude": ["registered"]
+    },
+    {
+      "id": "data-after-cancelling",
+      "question": "What happens to our vineyard's measurements if we cancel the subscription?",
+      "expectedSource": "customer-data-policy.md",
+      "expectedPassage": "kept for another 12 months",
+      "mustInclude": [["12 months", "twelve months", "one year", "a year"]]
+    },
+    {
+      "id": "train-or-flight",
+      "question": "Can I fly to a customer who is four hours away by train?",
+      "expectedSource": "travel-policy.md",
+      "expectedPassage": "train for any trip shorter than six hours",
+      "mustInclude": ["train"]
+    },
+    {
+      "id": "pilot-before-buying",
+      "question": "Can a vineyard try the system before buying the full setup?",
+      "expectedSource": "sales-playbook.md",
+      "expectedPassage": "pilot kit of five sensors and one gateway",
+      "mustInclude": ["750"]
+    },
+    {
+      "id": "lost-laptop",
+      "question": "I left my work laptop on the train. Who do I tell, and how fast?",
+      "expectedSource": "security-policy.md",
+      "expectedPassage": "reported to the security team within one hour",
+      "mustInclude": [["one hour", "1 hour"]]
+    },
+    {
+      "id": "unpaid-invoice-access",
+      "question": "When does a customer lose dashboard access for not paying?",
+      "expectedSource": "sales-playbook.md",
+      "expectedPassage": "after 45 days, the dashboard access",
+      "mustInclude": ["45"]
+    },
+    {
+      "id": "unanswerable-porto-office",
+      "question": "How much does parking cost at the Porto office?",
+      "expectRefusal": true
+    },
+    {
+      "id": "unanswerable-firmware-4",
+      "question": "What is new in sensor firmware 4.0?",
+      "expectRefusal": true
     }
   ]
 }

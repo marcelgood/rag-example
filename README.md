@@ -1,6 +1,6 @@
 # RAG example in Node.js
 
-A small, readable example of Retrieval-Augmented Generation (RAG): an **ingestion pipeline** that turns documents into searchable vectors, and a **query pipeline** that answers questions from them with an LLM, citing its sources. Part 2 does the same for a relational database (text-to-SQL), Part 3 measures answer quality with evals, Part 4 moves the database tools into an MCP server, Part 5 replaces the hand-written tool loop with the Vercel AI SDK, and Part 6 adds sign-in and multi-tenancy: each user sees only their own company's data.
+A small, readable example of Retrieval-Augmented Generation (RAG): an **ingestion pipeline** that turns documents into searchable vectors, and a **query pipeline** that answers questions from them with an LLM, citing its sources. Part 2 does the same for a relational database (text-to-SQL), Part 3 measures answer quality with evals, Part 4 moves the database tools into an MCP server, Part 5 replaces the hand-written tool loop with the Vercel AI SDK, Part 6 adds sign-in and multi-tenancy, so each user sees only their own company's data, and Part 7 improves document search with LangChain: hybrid search and re-ranking.
 
 The LLM is either a free local model through [Ollama](https://ollama.com) or Claude through the API. Set `llmProvider` in `src/config.ts`.
 
@@ -35,6 +35,11 @@ The LLM is either a free local model through [Ollama](https://ollama.com) or Cla
   - [The tokens](#the-tokens)
   - [What the eval checks](#what-the-eval-checks)
   - [What a production system adds](#what-a-production-system-adds)
+- [**Part 7: better document search with LangChain**](#part-7-better-document-search-with-langchain)
+  - [Four ways to find chunks](#four-ways-to-find-chunks)
+  - [Try it](#try-it)
+  - [What the eval showed](#what-the-eval-showed-1)
+  - [What LangChain did here](#what-langchain-did-here)
 
 ## How RAG works
 
@@ -201,7 +206,7 @@ Each run prints a line per question (✓ or ✗ with the reason), a summary, and
 
 Keep in mind:
 
-- **Results vary between runs.** The same model can pass a question once and fail it the next time. With 15 cases, one question is almost 7%, so don't trust a difference of one or two cases. Run twice when it matters.
+- **Results vary between runs.** The same model can pass a question once and fail it the next time. With 30 cases, one question is over 3%, so don't trust a difference of one or two cases. Run twice when it matters.
 - **The graders can be wrong too.** A ✗ can mean the answer said "four weeks" where the check wanted "28 days". Read the answer before blaming the model, and add the wording to the case if it was fine.
 - **The checks are lenient on extra content.** An answer that lists the right customers plus a wrong one still passes `containsValues`. Add `mustNotInclude` for mistakes you've seen.
 
@@ -443,3 +448,69 @@ Writing the eval found a real bug: sign-out silently failed (better-auth wanted 
 - **A second line of defense in the database**, such as PostgreSQL row-level security, so that a query that forgets the tenant filter still returns only that tenant's rows. SQLite has no such feature.
 - **HTTPS** everywhere, a real `BETTER_AUTH_SECRET` (the demo falls back to a fixed development secret), and rate limiting on sign-in.
 - **Roles within a tenant**, for example: only finance may see amounts owed. That would be a claim or a lookup checked in the tools, just like the tenant.
+
+## Part 7: better document search with LangChain
+
+Part 1 finds chunks with vector search alone. Part 7 adds the two most common improvements, keyword search combined with vector search (hybrid search) and re-ranking, built from [LangChain](https://js.langchain.com) retrievers, and uses the eval to measure whether they help.
+
+To make the measurement meaningful, `data/` grew from 3 to 11 documents (security and travel policies, a gateway installation guide, error codes, release notes, a sales playbook, an office guide and a customer data policy), and `evals/doc-cases.json` from 15 to 30 questions. The new documents deliberately overlap the old ones (trains, laptops, "30 days", "15 minutes") and contain exact codes and version numbers. With only 3 short documents, "top 5" was already half of all chunks, so every method looked perfect.
+
+### Four ways to find chunks
+
+| Method | How it works | Good at | Weak at |
+|---|---|---|---|
+| Vector (Part 1) | Closest embeddings | Paraphrases: "money for a desk" finds "home-office budget" | Exact terms: "ERR-07", "3.2.1" and "ERR-12" all look alike to it |
+| Keyword | [BM25](https://en.wikipedia.org/wiki/Okapi_BM25) over a full-text index: chunks that contain the question's rarer words, often | Codes, names, version numbers | Different words for the same thing: "fly" doesn't match "train" |
+| Hybrid | Both searches, merged with reciprocal rank fusion: each chunk scores 1 / (60 + rank) in each list, and the sums decide the order | Doesn't miss what either one finds | Its first place is only as good as the two lists' agreement |
+| Re-ranking | A cross-encoder reads the question and each candidate chunk together and scores how well the chunk answers it. Used to reorder the top 20 candidates of a fast search | Putting the best chunk first | Speed: one model run per candidate. And it's only as good as its training |
+
+The searches run in LanceDB: ingestion now also builds a full-text index next to the vectors. LangChain composes them: each search is a retriever, `EnsembleRetriever` merges two retrievers, and `ContextualCompressionRetriever` runs a re-ranker over a retriever's results. The re-ranker is `Xenova/ms-marco-MiniLM-L-6-v2`, a small cross-encoder that runs locally through Transformers.js (about 90 MB, downloaded on first use).
+
+| File | What it does |
+|---|---|
+| `src/retrieve.ts` | The LangChain retrievers and `retrieve(question, k, method)`, used by `ask`, `search` and the eval |
+| `src/rerank.ts` | The cross-encoder, wrapped as a LangChain document compressor |
+| `src/store.ts` | Now also creates the full-text index and runs keyword search |
+
+### Try it
+
+```bash
+npx agent ingest                                     # rebuild: 11 documents, now with a full-text index
+npx agent eval retrieval --compare                   # every method on every question, no LLM
+npx agent search --method keyword "ERR-07"
+npx agent ask --method hybrid-rerank "My sensor shows ERR-07. What do I do?"
+npx agent eval --method hybrid-rerank                # answers too
+```
+
+`--method` works with `ask`, `search` and `eval`. The default is `retrievalMethod` in `src/config.ts`, which stays `'vector'` so that Part 1 works as described there. Set it to `'hybrid-rerank'` to use the best method everywhere.
+
+### What the eval showed
+
+Retrieval for the 25 answerable questions, top 5 chunks (`npx agent eval retrieval --compare`):
+
+| Method | hit@1 | hit@5 | MRR | Time per question |
+|---|---|---|---|---|
+| vector | 60% | 96% | 0.75 | 58 ms |
+| keyword | 76% | 100% | 0.84 | 60 ms |
+| hybrid | 60% | 100% | 0.79 | 67 ms |
+| vector + re-rank | 88% | 96% | 0.92 | 1.5–3.3 s |
+| hybrid + re-rank | 88% | 96% | 0.92 | 1.5–3.3 s |
+
+Answers with the local model (`npx agent eval --method ...`): **27/30 with vector search, 29/30 with hybrid + re-rank.**
+
+What to take from it:
+
+- **Re-ranking made the biggest difference.** The right chunk came first for 88% of questions instead of 60%. Compared with vector search, nine questions moved up and two moved down. For example, "Who has to approve a 700 euro expense?" now finds the handbook's approval rule first instead of second (vector search had put the travel policy, which also talks about expenses, first).
+- **Keyword search did better than expected, and hybrid search didn't beat it.** Most questions share words with their answer, and exact codes such as "GW-30" and "LARKSPUR-GUEST" are easy for BM25. Hybrid search found everything (hit@5 100%, and it fixed "How many sensors can one gateway serve?", which vector search missed entirely), but averaging two rankings doesn't make a better first place. Treat this with care: the test questions were written by the same person as the documents, so they probably share more words than real users' questions do. That's why hybrid, which doesn't depend on that, is the safer base.
+- **The re-ranker has blind spots.** For "What happens to our vineyard's measurements if we cancel the subscription?", hybrid search had the right chunk at rank 3, but the re-ranker pushed it out of the top 5. It didn't connect "measurements" with "sensor readings", and its scores for every candidate were negative, which is its way of saying that nothing looked like a good answer. The model then correctly said it couldn't find the answer. A larger re-ranker (or a hosted one, such as Voyage or Cohere) would likely catch this.
+- **Better retrieval helps answers less than hit@1 suggests**, because the model gets 5 chunks and usually finds the answer at rank 2 or 3 too. The gain shows when fewer chunks are sent: in the top 2, vector search had the answer for 84% of questions, hybrid + re-rank for 96%. Fewer chunks mean fewer tokens, so lower cost with Claude, and less distraction for small models.
+- **Re-ranking costs time**: 1.5 to 3 seconds per question on this laptop's CPU, against 60 ms for the other methods, mostly from running the cross-encoder on 20 to 40 candidates. Fewer candidates (`retrievalCandidates`) or a GPU make it faster.
+
+### What LangChain did here
+
+LangChain contributed the composition: the retriever interface, rank fusion (`EnsembleRetriever`), and the hook for a re-ranker (`ContextualCompressionRetriever`). The searches are LanceDB's and the re-ranking model is Transformers.js, wrapped in about 20 lines each. The classic retriever classes live in `@langchain/classic` since LangChain 1.0.
+
+Two things that didn't make it in:
+
+- **LangChain's own BM25 retriever** is in `@langchain/community`, which lists dozens of optional integrations as peer dependencies. One of them conflicts with this project's version of zod, so installing it would have meant `--legacy-peer-deps` for the whole project. LanceDB's full-text index does the same job, and it is also where keyword search belongs for a large corpus, rather than in memory.
+- **Other retrievers to try next**, built the same way: `MultiQueryRetriever` (an LLM rewrites the question several ways and the results are merged), `ParentDocumentRetriever` (search small chunks, but hand the model the larger section around them), and `HydeRetriever` (an LLM writes a hypothetical answer, and that is searched for instead of the question).

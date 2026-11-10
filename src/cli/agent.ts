@@ -23,8 +23,10 @@ const HELP = `Usage: npx agent <command> [options]   (from the project folder)
 
 Documents (Part 1)
   npx agent ingest                     Read data/ into the vector database
-  npx agent search <query>             Show the chunks most similar to a query (no LLM)
+  npx agent search <query>             Show the chunks found for a query (no LLM)
   npx agent ask <question>             Answer a question from the documents
+      --method <name>                  How chunks are found (Part 7): vector, keyword, hybrid,
+                                       vector-rerank or hybrid-rerank. Also for search.
 
 Sales database (Parts 2, 4 and 5)
   npx agent seed                       Create the sample sales database
@@ -44,7 +46,7 @@ Signed-in users and tenants (Part 6)
 Evals (Part 3)
   npx agent eval [suite] [--only <case-id>]
       docs (default)   document questions: retrieval and answers
-      retrieval        retrieval only, no LLM
+      retrieval        retrieval only, no LLM (--compare: all retrieval methods side by side)
       sql | mcp        database questions with run_sql or with the MCP tools
       tenant           security checks and questions as users of both tenants
       security         the tenant security checks only, no LLM
@@ -91,10 +93,14 @@ switch (command) {
       '--ai-sdk': 'src/ai-sdk/ask-mcp.ts',
       '--tenant': 'src/tenant/ask.ts',
     };
+    // --method <name> chooses the retrieval method for document questions (Part 7).
+    const methodIndex = args.indexOf('--method');
+    const methodArgs = methodIndex >= 0 ? args.splice(methodIndex, 2) : [];
     const { flags, text } = takeFlags(args, Object.keys(ASK_SCRIPTS));
     if (flags.length > 1) fail(`Choose one of ${flags.join(', ')}.`);
-    if (!text) fail('Usage: npx agent ask [--sql | --mcp | --ai-sdk | --tenant] <question>');
-    await run(flags[0] ? ASK_SCRIPTS[flags[0]]! : 'src/ask.ts', [text]);
+    if (methodArgs.length && flags.length) fail('--method only applies to document questions.');
+    if (!text) fail('Usage: npx agent ask [--sql | --mcp | --ai-sdk | --tenant | --method <name>] <question>');
+    await run(flags[0] ? ASK_SCRIPTS[flags[0]]! : 'src/ask.ts', [...methodArgs, text]);
     break;
   }
 

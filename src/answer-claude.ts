@@ -7,7 +7,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { config } from './config.ts';
 import { SYSTEM_PROMPT, type Answer, type AnswerFunction, type Source } from './answer.ts';
-import type { SearchResult } from './store.ts';
+import type { ChunkText } from './store.ts';
 
 // Reads ANTHROPIC_API_KEY from the environment (npm run ask loads .env).
 const client = new Anthropic();
@@ -49,7 +49,7 @@ export const answer: AnswerFunction = async (question, chunks) => {
 // the sources those numbers refer to.
 function formatWithCitations(
   content: Anthropic.ContentBlock[],
-  chunks: SearchResult[],
+  chunks: ChunkText[],
 ): Pick<Answer, 'text' | 'sources'> {
   const numberByDoc = new Map<number, number>(); // document_index -> citation number
   const sources: Source[] = [];

@@ -31,6 +31,21 @@ export const config = {
   // Too few and the right chunk may be missed; too many adds noise and cost.
   topK: 5,
 
+  // How chunks are found (Part 7, see the README):
+  //   'vector'         by meaning: the closest embeddings (Part 1)
+  //   'keyword'        by words: BM25 full-text search
+  //   'hybrid'         both, merged with reciprocal rank fusion
+  //   'vector-rerank'  vector search, then a re-ranking model reorders the candidates
+  //   'hybrid-rerank'  hybrid search, then re-ranking
+  retrievalMethod: 'vector' as 'vector' | 'keyword' | 'hybrid' | 'vector-rerank' | 'hybrid-rerank',
+  // How many candidates each search returns before merging and re-ranking.
+  retrievalCandidates: 20,
+  // Weights of vector and keyword results in hybrid search.
+  hybridWeights: [0.5, 0.5],
+  // A small cross-encoder that scores how well a chunk answers a question.
+  // Runs locally through Transformers.js (~90 MB download on first use).
+  rerankModel: 'Xenova/ms-marco-MiniLM-L-6-v2',
+
   // Which LLM writes the answers:
   //   'ollama' - a small open model running locally. Free, but weaker.
   //   'claude' - the Claude API. Needs an API key with credits.

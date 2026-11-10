@@ -13,12 +13,11 @@
 //     Fix with the prompt or the model.
 
 import { config } from '../config.ts';
-import { embedText } from '../embed.ts';
-import { searchChunks } from '../store.ts';
+import { retrieve, type RetrievalMethod, type RetrievedChunk } from '../retrieve.ts';
 import { answerQuestion } from '../answer.ts';
 import { exitIfMissingCredentials, handleLlmError } from '../llm/errors.ts';
 import { mentionsAll, mentionsNone, normalize, saysItDoesNotKnow, type CheckResult, type Expected } from './checks.ts';
-import { hasFlag, loadCases, modelName, percent, printCase, printCheckTotals, saveReport } from './report.ts';
+import { flagValue, hasFlag, loadCases, modelName, percent, printCase, printCheckTotals, saveReport } from './report.ts';
 
 type DocCase = {
   id: string;
@@ -33,12 +32,71 @@ type DocCase = {
   expectRefusal?: boolean;
 };
 
+const METHODS: RetrievalMethod[] = ['vector', 'keyword', 'hybrid', 'vector-rerank', 'hybrid-rerank'];
+const method = (flagValue('--method') ?? config.retrievalMethod) as RetrievalMethod;
+if (!METHODS.includes(method)) {
+  console.error(`Unknown retrieval method "${method}". Choose one of: ${METHODS.join(', ')}.`);
+  process.exit(1);
+}
+
 const retrievalOnly = hasFlag('--retrieval-only');
 const cases = loadCases<DocCase>(config.evalDocCasesPath);
+
+/** Rank (1 = first) of the chunk with the expected passage, 0 if missed, undefined for unanswerable cases. */
+function rankOf(c: DocCase, chunks: RetrievedChunk[]): number | undefined {
+  if (!c.expectedSource || !c.expectedPassage) return undefined;
+  const passage = normalize(c.expectedPassage);
+  return chunks.findIndex((ch) => ch.source === c.expectedSource && normalize(ch.text).includes(passage)) + 1;
+}
+
+/** hit@1, hit@k and MRR (mean reciprocal rank: rank 1 scores 1, rank 2 scores 0.5, a miss 0). */
+function retrievalMetrics(ranks: number[]) {
+  const hits = (k: number) => ranks.filter((r) => r > 0 && r <= k).length;
+  const mrr = ranks.length ? ranks.reduce((sum, r) => sum + (r ? 1 / r : 0), 0) / ranks.length : 0;
+  return { cases: ranks.length, hitAt1: hits(1), hitAtK: hits(config.topK), mrr: Number(mrr.toFixed(3)) };
+}
+
+// --compare: every retrieval method on every question, side by side. No LLM.
+if (hasFlag('--compare')) {
+  console.log(`Comparing retrieval methods on ${cases.length} questions, top ${config.topK} chunks\n`);
+  const ranksByMethod: Record<string, (number | undefined)[]> = {};
+  const msPerQuestion: Record<string, number> = {};
+  for (const m of METHODS) {
+    await retrieve('warm-up', config.topK, m); // load the models first, so they don't count in the timing
+    ranksByMethod[m] = [];
+    const started = performance.now();
+    for (const c of cases) ranksByMethod[m].push(rankOf(c, await retrieve(c.question, config.topK, m)));
+    msPerQuestion[m] = (performance.now() - started) / cases.length;
+  }
+  // One row per answerable question: the rank each method found the passage at (- = missed).
+  const width = 15;
+  console.log(`${'question'.padEnd(26)}${METHODS.map((m) => m.padStart(width)).join('')}`);
+  cases.forEach((c, i) => {
+    if (ranksByMethod.vector![i] === undefined) return;
+    const cells = METHODS.map((m) => String(ranksByMethod[m]![i] || '-').padStart(width));
+    console.log(`${c.id.padEnd(26)}${cells.join('')}`);
+  });
+  const summary = Object.fromEntries(METHODS.map((m) => [m, retrievalMetrics(ranksByMethod[m]!.filter((r) => r !== undefined))]));
+  console.log(`\n${'method'.padEnd(16)}${'hit@1'.padStart(8)}${`hit@${config.topK}`.padStart(8)}${'MRR'.padStart(8)}${'ms/question'.padStart(14)}`);
+  for (const [m, s] of Object.entries(summary)) {
+    const cells = [percent(s.hitAt1, s.cases), percent(s.hitAtK, s.cases), s.mrr.toFixed(2)].map((v) => v.padStart(8)).join('');
+    console.log(`${m.padEnd(16)}${cells}${msPerQuestion[m]!.toFixed(0).padStart(14)}`);
+  }
+  const file = saveReport('retrieval-compare', {
+    settings: { topK: config.topK, candidates: config.retrievalCandidates },
+    summary,
+    msPerQuestion,
+    ranksByMethod,
+  });
+  console.log(`\nFull results: ${file}`);
+  process.exit();
+}
+
 if (!retrievalOnly) exitIfMissingCredentials();
 
 console.log(
-  `Evaluating ${cases.length} questions: ${retrievalOnly ? 'retrieval only' : `retrieval + answers by ${modelName()}`}, top ${config.topK} chunks\n`,
+  `Evaluating ${cases.length} questions: ${retrievalOnly ? 'retrieval only' : `retrieval + answers by ${modelName()}`}, ` +
+    `${method} retrieval, top ${config.topK} chunks\n`,
 );
 
 const results = [];
@@ -50,15 +108,11 @@ const started = Date.now();
 try {
   for (const c of cases) {
     const caseStarted = Date.now();
-    const chunks = await searchChunks(await embedText(c.question), config.topK);
+    const chunks = await retrieve(c.question, config.topK, method);
 
     // 1. Retrieval
-    let rank: number | undefined;
-    if (c.expectedSource && c.expectedPassage) {
-      const passage = normalize(c.expectedPassage);
-      rank = chunks.findIndex((ch) => ch.source === c.expectedSource && normalize(ch.text).includes(passage)) + 1;
-      ranks.push(rank);
-    }
+    const rank = rankOf(c, chunks);
+    if (rank !== undefined) ranks.push(rank);
     const retrievalText = rank === undefined ? 'retrieval: n/a' : rank ? `retrieval: rank ${rank}` : 'retrieval: MISSED';
 
     if (retrievalOnly) {
@@ -103,15 +157,12 @@ try {
 // Summary. hit@k: share of questions whose answer passage was in the top k.
 // MRR (mean reciprocal rank): average of 1/rank, so rank 1 scores 1, rank 2
 // scores 0.5, and a miss scores 0. It rewards finding the passage early.
-const hits = (k: number) => ranks.filter((r) => r > 0 && r <= k).length;
-const mrr = ranks.length ? ranks.reduce((sum, r) => sum + (r ? 1 / r : 0), 0) / ranks.length : 0;
-const summary: Record<string, unknown> = {
-  retrieval: { cases: ranks.length, hitAt1: hits(1), hitAtK: hits(config.topK), mrr: Number(mrr.toFixed(3)) },
-};
+const retrieval = retrievalMetrics(ranks);
+const summary: Record<string, unknown> = { retrieval };
 
-console.log(`\nRetrieval (${ranks.length} answerable questions):`);
+console.log(`\nRetrieval (${retrieval.cases} answerable questions):`);
 console.log(
-  `  hit@1 ${percent(hits(1), ranks.length)}, hit@${config.topK} ${percent(hits(config.topK), ranks.length)}, MRR ${mrr.toFixed(2)}`,
+  `  hit@1 ${percent(retrieval.hitAt1, retrieval.cases)}, hit@${config.topK} ${percent(retrieval.hitAtK, retrieval.cases)}, MRR ${retrieval.mrr.toFixed(2)}`,
 );
 
 if (!retrievalOnly) {
@@ -123,7 +174,13 @@ if (!retrievalOnly) {
 }
 
 const file = saveReport(retrievalOnly ? 'retrieval' : 'docs', {
-  settings: { topK: config.topK, chunkSize: config.chunkSize, chunkOverlap: config.chunkOverlap, embeddingModel: config.embeddingModel },
+  settings: {
+    retrievalMethod: method,
+    topK: config.topK,
+    chunkSize: config.chunkSize,
+    chunkOverlap: config.chunkOverlap,
+    embeddingModel: config.embeddingModel,
+  },
   summary,
   results,
 });
