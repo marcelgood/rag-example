@@ -16,7 +16,7 @@ The LLM is either a free local model through [Ollama](https://ollama.com) or Cla
 - [**Part 2: questions over a relational database (text-to-SQL)**](#part-2-questions-over-a-relational-database-text-to-sql)
 - [**Part 3: evaluating answer quality (evals)**](#part-3-evaluating-answer-quality-evals)
   - [The three parts of an eval](#the-three-parts-of-an-eval)
-  - [What gets measured](#what-gets-measured)
+  - [What gets measured](#what-gets-measured) (including [hit@k and MRR](#the-retrieval-measures-explained))
   - [How to use it](#how-to-use-it)
   - [Next step: an LLM as the grader](#next-step-an-llm-as-the-grader)
 - [**Part 4: the database tools as an MCP server**](#part-4-the-database-tools-as-an-mcp-server)
@@ -195,6 +195,24 @@ Each run prints a line per question (✓ or ✗ with the reason), a summary, and
 | mentions the expected facts | The answer contains the facts in `mustInclude` | prompt, model |
 | cites the right document | At least one citation points to the expected file | prompt, model |
 | says it could not find the answer | For unanswerable questions: no invented answer | prompt (`SYSTEM_PROMPT` in `src/answer.ts`), model |
+
+#### The retrieval measures, explained
+
+Both start from the same number: for each question, the **rank** at which the chunk containing the answer came back. The eval knows which chunk that is, because each test case names the document and a phrase from the answer (`expectedSource` and `expectedPassage`). If that chunk isn't among the chunks retrieved, the question counts as missed.
+
+- **hit@k** ("hit at k") is the share of questions whose answer chunk was in the top k. **hit@5** answers "did the model get to see the answer at all?", since the model receives 5 chunks (`topK`). **hit@1** answers "was the best chunk the right one?" hit@k ignores where in the top k the chunk was: rank 1 and rank 5 count the same.
+- **MRR** stands for **mean reciprocal rank**. Each question scores 1 divided by its rank (1st place scores 1, 2nd 0.5, 3rd 0.33, 5th 0.2, a miss 0), and MRR is the average of those scores. It ranges from 0 (never found) to 1 (always first). Unlike hit@5, it rewards finding the answer early, and it falls off fast: slipping from 1st to 2nd place halves that question's score.
+
+An example with four questions, whose answer chunks came back at ranks 1, 2, 1 and missed:
+
+| | Question 1 | Question 2 | Question 3 | Question 4 | Result |
+|---|---|---|---|---|---|
+| Rank | 1 | 2 | 1 | missed | |
+| In top 1? | yes | no | yes | no | hit@1 = 2/4 = 50% |
+| In top 5? | yes | yes | yes | no | hit@5 = 3/4 = 75% |
+| 1 / rank | 1 | 0.5 | 1 | 0 | MRR = 2.5 / 4 = 0.625 |
+
+Read them together: a high hit@5 with a low hit@1 means the search finds the answer but ranks other chunks above it, which is what re-ranking fixes (see Part 7). A low hit@5 means the answer is missing entirely, and no model can answer well from chunks that don't contain it.
 
 **Database:** each case has a `referenceSql` query that a human wrote and checked. The eval runs it and checks that every value in its result (names, amounts, counts) appears in the model's answer. The right answers therefore come from the data, not from the test file. Only the answer is graded, not the model's SQL, because many different queries are correct.
 
@@ -486,7 +504,7 @@ npx agent eval --method hybrid-rerank                # answers too
 
 ### What the eval showed
 
-Retrieval for the 25 answerable questions, top 5 chunks (`npx agent eval retrieval --compare`):
+Retrieval for the 25 answerable questions, top 5 chunks (`npx agent eval retrieval --compare`). hit@1, hit@5 and MRR are explained in [Part 3](#the-retrieval-measures-explained).
 
 | Method | hit@1 | hit@5 | MRR | Time per question |
 |---|---|---|---|---|
