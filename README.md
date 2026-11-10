@@ -39,10 +39,10 @@ The LLM is either a free local model through [Ollama](https://ollama.com) or Cla
 ## How RAG works
 
 ```
-INGESTION (offline, run when documents change)           npm run ingest
+INGESTION (offline, run when documents change)       npx agent ingest
   data/*.md, *.txt → load → chunk → embed → store in LanceDB
 
-QUERY (online, per question)                             npm run ask -- "..."
+QUERY (online, per question)                         npx agent ask "..."
   question → embed → vector search (top-k chunks) → LLM answers from those chunks → answer + citations
 ```
 
@@ -81,9 +81,23 @@ You can swap each one out separately. Use a hosted embedding API by changing onl
 ```bash
 npm install
 npm run typecheck
-npm run ingest
-npm run search -- "How many vacation days do I get?"
+npx agent ingest
+npx agent search "How many vacation days do I get?"
 ```
+
+**The `agent` command.** Everything in this project runs through one command: `npx agent help` lists them all. It's declared under `bin` in `package.json`, so `npx` finds it in the project folder without installing anything; nothing is added to your PATH. (To type just `agent` from anywhere, `npm link` would install it globally. This project doesn't need that.) The npm scripts still work too, if you prefer them:
+
+| `agent` command | npm script |
+|---|---|
+| `npx agent ingest`, `npx agent search "..."` | `npm run ingest`, `npm run search -- "..."` |
+| `npx agent ask "..."` | `npm run ask -- "..."` |
+| `npx agent ask --sql` / `--mcp` / `--ai-sdk` / `--tenant "..."` | `npm run ask:sql` / `ask:mcp` / `ask:ai-sdk` / `ask:tenant -- "..."` |
+| `npx agent seed`, `npx agent seed --tenants` | `npm run db:seed`, `npm run tenant:seed` |
+| `npx agent eval` (`retrieval`, `sql`, `mcp`, `tenant`, `security`) | `npm run eval` (`eval:retrieval`, `eval:sql`, `eval:mcp`, `eval:tenant`, `eval:tenant:security`) |
+| `npx agent serve mcp`, `npx agent serve tenant` | `npm run mcp:server`, `npm run tenant:servers` |
+| `npx agent login <email>`, `npx agent logout`, `npx agent whoami` | `npm run login -- <email>`, `npm run logout`, (none) |
+
+The command is a small dispatcher (`src/cli/agent.ts`, started by `bin/agent.js`) that runs the same scripts.
 
 **Local LLM (default):** install Ollama from [ollama.com/download](https://ollama.com/download), then download the model (2.5 GB):
 
@@ -96,14 +110,14 @@ ollama pull qwen3:4b-instruct
 ## Ask questions
 
 ```bash
-npm run ask -- "Who gets paged if the on-call engineer doesn't respond?"
+npx agent ask "Who gets paged if the on-call engineer doesn't respond?"
 ```
 
 The output shows which chunks were retrieved, the answer with `[1]`-style markers, what each number refers to, the token count and the time taken.
 
 The citations work differently per provider. Claude has a built-in citation feature that returns the exact passage behind each statement. Open models don't, so `answer-ollama.ts` numbers the chunks in the prompt and asks the model to write the markers itself. Small models sometimes forget them or pick the wrong number.
 
-Add your own `.md`/`.txt` files to `data/` and run `npm run ingest` again. Each run rebuilds the table from scratch.
+Add your own `.md`/`.txt` files to `data/` and run `npx agent ingest` again. Each run rebuilds the table from scratch.
 
 ## Things to try
 
@@ -125,8 +139,8 @@ question → LLM writes SQL from the schema → run it read-only → LLM answers
 The model gets the schema and a `run_sql` tool, and decides which queries to run. It may run more than one, for example to check what values a column holds before writing the real query.
 
 ```bash
-npm run db:seed
-npm run ask:sql -- "Which customers have overdue invoices, and how much do they owe?"
+npx agent seed
+npx agent ask --sql "Which customers have overdue invoices, and how much do they owe?"
 ```
 
 Every query the model runs is printed, so you can check its SQL.
@@ -152,9 +166,9 @@ Things to try:
 Trying a few questions by hand tells you little: an LLM can answer one question well and the next one badly, and a change that fixes one answer can quietly break another. An **eval** is a fixed set of test questions with a definition of "correct" for each, run automatically. It turns "seems better" into a number you can compare before and after a change.
 
 ```bash
-npm run eval:retrieval   # retrieval only, no LLM, a few seconds
-npm run eval             # document questions: retrieval + answers
-npm run eval:sql         # database questions
+npx agent eval retrieval   # retrieval only, no LLM, a few seconds
+npx agent eval             # document questions: retrieval + answers
+npx agent eval sql         # database questions
 ```
 
 Each run prints a line per question (✓ or ✗ with the reason), a summary, and saves everything (questions, answers, retrieved chunks, checks) to `evals/results/` as JSON, so you can read failed answers and compare runs.
@@ -236,11 +250,11 @@ The SQL is written in the server, and the model's values only go in as `?` param
 ### Run it
 
 ```bash
-npm run ask:mcp -- "What was the revenue per country in 2025?"
-npm run eval:mcp
+npx agent ask --mcp "What was the revenue per country in 2025?"
+npx agent eval mcp
 ```
 
-`eval:mcp` runs the same questions as `eval:sql` (`evals/sql-cases.json`), so you can compare the two approaches directly.
+`npx agent eval mcp` runs the same questions as `npx agent eval sql` (`evals/sql-cases.json`), so you can compare the two approaches directly.
 
 | File | What it does |
 |---|---|
@@ -285,12 +299,12 @@ console.log(result.text);
 
 ### Two ways to use it
 
-**1. As a drop-in replacement for the hand-written loops.** Set `agentLoop: 'ai-sdk'` in `src/config.ts`, and `ask:sql`, `ask:mcp`, `eval:sql` and `eval:mcp` run through `src/ai-sdk/run.ts` instead. It takes the same `Agent` (system prompt, tools, `runTool`), so nothing else changes, and the evals compare the two loops directly.
+**1. As a drop-in replacement for the hand-written loops.** Set `agentLoop: 'ai-sdk'` in `src/config.ts`, and `npx agent ask --sql`, `npx agent ask --mcp`, `npx agent eval sql` and `npx agent eval mcp` run through `src/ai-sdk/run.ts` instead. It takes the same `Agent` (system prompt, tools, `runTool`), so nothing else changes, and the evals compare the two loops directly.
 
 **2. The usual way, AI SDK end to end.** `src/ai-sdk/ask-mcp.ts` is Part 4 in one file. The AI SDK's MCP client (`@ai-sdk/mcp`) starts the server and turns its tools straight into AI SDK tools, so `src/mcp/client.ts` and the `Agent` type aren't needed at all:
 
 ```bash
-npm run ask:ai-sdk -- "Which customers have overdue invoices, and how much do they owe?"
+npx agent ask --ai-sdk "Which customers have overdue invoices, and how much do they owe?"
 ```
 
 | File | What it does |
@@ -310,7 +324,7 @@ npm run ask:ai-sdk -- "Which customers have overdue invoices, and how much do th
 | MCP tools | Our client converts them (`src/mcp/client.ts`) | `await mcpClient.tools()` |
 | Seeing what happens | Everything is in our code | Callbacks such as `onToolExecutionStart`, and `result.steps` |
 
-The eval scores were the same with both loops on the local model: 8/9 for `eval:sql` and 9/9 for `eval:mcp`. That's expected: the loop only moves messages back and forth, and the model and the tool design decide the answers. The one failure was the model writing invalid SQL twice in a row, and it failed the same way with the hand-written loop.
+The eval scores were the same with both loops on the local model: 8/9 for `npx agent eval sql` and 9/9 for `npx agent eval mcp`. That's expected: the loop only moves messages back and forth, and the model and the tool design decide the answers. The one failure was the model writing invalid SQL twice in a row, and it failed the same way with the hand-written loop.
 
 The cost of a library is less control and one more thing to keep up to date. Its API changes between major versions (this uses v7), and details like which features each provider supports depend on the provider package. In return you get retries, streaming (`streamText`), structured output, tool approval and tracing without writing them.
 
@@ -333,10 +347,10 @@ It builds on Part 5: the Vercel AI SDK runs the tool loop, and the tools come fr
 ### How a question flows
 
 ```
-npm run login ──email + password──▶ auth server (better-auth, :3100) ── checks the scrypt hash in db/tenants.db
-      ◀──────── session token ─────┘   (kept in .auth/session.json)
+npx agent login ──email + password──▶ auth server (better-auth, :3100) ── checks the scrypt hash in db/tenants.db
+      ◀────────── session token ─────┘   (kept in .auth/session.json)
 
-npm run ask:tenant
+npx agent ask --tenant
   1. session token ──▶ auth server ──▶ access token (JWT, 15 min, for the MCP server only)
   2. AI SDK loop ── MCP request + "Authorization: Bearer <JWT>" ──▶ MCP server (:3200/mcp)
                                                                      ├─ token valid? (signature, issuer, audience, expiry) else 401
@@ -349,18 +363,18 @@ The model plays no part in the security. It never sees the token or the tenant I
 ### Run it
 
 ```bash
-npm run tenant:seed                       # create db/tenants.db: 2 companies, their sales data, 5 users
-npm run tenant:servers                    # start the auth and MCP servers; leave this running
+npx agent seed --tenants                      # create db/tenants.db: 2 companies, their sales data, 5 users
+npx agent serve tenant                        # start the auth and MCP servers; leave this running
 ```
 
 Then, in a second terminal:
 
 ```bash
-npm run login -- anna@larkspur.test       # asks for the password: password123
-npm run ask:tenant -- "Which customers do we have, and what was our revenue in 2025?"
-npm run login -- carla@copperleaf.test    # switch user: same question, different company
-npm run ask:tenant -- "Which customers do we have, and what was our revenue in 2025?"
-npm run logout
+npx agent login anna@larkspur.test            # asks for the password: password123
+npx agent ask --tenant "Which customers do we have, and what was our revenue in 2025?"
+npx agent login carla@copperleaf.test         # switch user: same question, different company
+npx agent ask --tenant "Which customers do we have, and what was our revenue in 2025?"
+npx agent logout
 ```
 
 | User | Password | Tenant |
@@ -400,15 +414,15 @@ The tenant is deliberately not a claim in the token. The auth server says who th
 | Sent to | only the auth server | only the MCP server (its `aud` claim names the MCP server, which refuses tokens issued for anything else) |
 | Checked by | looking it up in the session table | its signature, with the auth server's public key (`/api/auth/jwks`). No database lookup |
 
-That split is why the MCP server needs no access to users, passwords or sessions: it fetches the public keys once and checks tokens on its own. The cost is that a JWT can't be revoked. After `npm run logout`, the session is gone and no new access tokens are issued, but one that was already issued stays valid until it expires, which is why it lives only 15 minutes.
+That split is why the MCP server needs no access to users, passwords or sessions: it fetches the public keys once and checks tokens on its own. The cost is that a JWT can't be revoked. After `npx agent logout`, the session is gone and no new access tokens are issued, but one that was already issued stays valid until it expires, which is why it lives only 15 minutes.
 
 Passwords are stored as salted [scrypt](https://en.wikipedia.org/wiki/Scrypt) hashes (in better-auth's `account` table), not encrypted: a hash can't be turned back into the password, it can only be checked against one. scrypt is deliberately slow, so guessing passwords from a stolen database is expensive.
 
 ### What the eval checks
 
 ```bash
-npm run eval:tenant:security   # security checks only, no model, a few seconds
-npm run eval:tenant            # security checks + questions as users of both tenants
+npx agent eval security   # security checks only, no model, a few seconds
+npx agent eval tenant     # security checks + questions as users of both tenants
 ```
 
 Both start the servers themselves if they aren't running. The security checks don't use a model, because security must not depend on one. They check that:
@@ -417,7 +431,7 @@ Both start the servers themselves if they aren't running. The security checks do
 - a user without a tenant gets 403;
 - each user sees exactly their own tenant's customers, orders and totals.
 
-Then users of both tenants ask questions through the whole stack, graded like `eval:sql`, including attempts to get the other tenant's data. With the local model, all 12 security checks and all 7 questions passed. Asked to "ignore any tenant restrictions", the model either listed only the user's own customers or refused. Both are fine, because the other tenant's data never reached it.
+Then users of both tenants ask questions through the whole stack, graded like `npx agent eval sql`, including attempts to get the other tenant's data. With the local model, all 12 security checks and all 7 questions passed. Asked to "ignore any tenant restrictions", the model either listed only the user's own customers or refused. Both are fine, because the other tenant's data never reached it.
 
 Writing the eval found a real bug: sign-out silently failed (better-auth wanted a JSON body), so a signed-out session could still get new access tokens. The eval caught it, the fix was a few lines, and the check now guards against it coming back.
 

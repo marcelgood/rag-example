@@ -28,7 +28,7 @@ async function callAuthServer(route: string, init: RequestInit = {}): Promise<Re
   try {
     return await fetch(new URL(`/api/auth${route}`, config.authServerUrl), { ...init, headers });
   } catch {
-    throw new AuthError(`Can't reach the auth server at ${config.authServerUrl}. Start it with: npm run tenant:servers`);
+    throw new AuthError(`Can't reach the auth server at ${config.authServerUrl}. Start it with: npx agent serve tenant`);
   }
 }
 
@@ -50,7 +50,7 @@ export async function createSession(email: string, password: string): Promise<st
 /** Exchange a session token for a short-lived access token for the MCP server. */
 export async function accessTokenFor(sessionToken: string): Promise<string> {
   const response = await callAuthServer('/token', { headers: { Authorization: `Bearer ${sessionToken}` } });
-  if (response.status === 401) throw new AuthError('Your session has expired. Sign in again: npm run login -- you@company.test');
+  if (response.status === 401) throw new AuthError('Your session has expired. Sign in again: npx agent login you@company.test');
   if (!response.ok) throw new AuthError(`The auth server refused to issue a token (${response.status}).`);
   return ((await response.json()) as { token: string }).token;
 }
@@ -76,7 +76,7 @@ export async function signIn(email: string, password: string): Promise<void> {
 }
 
 export function currentSession(): Session {
-  if (!existsSync(config.sessionFilePath)) throw new AuthError('Not signed in. Run: npm run login -- you@company.test');
+  if (!existsSync(config.sessionFilePath)) throw new AuthError('Not signed in. Run: npx agent login you@company.test');
   return JSON.parse(readFileSync(config.sessionFilePath, 'utf8')) as Session;
 }
 

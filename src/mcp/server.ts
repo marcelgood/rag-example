@@ -28,7 +28,7 @@ const DB_PATH = path.resolve(import.meta.dirname, '../..', config.sqlDbPath);
 let db: DatabaseSync | undefined;
 function query(sql: string, params: SQLInputValue[] = []): Record<string, SQLInputValue>[] {
   if (!db) {
-    if (!existsSync(DB_PATH)) throw new Error(`Database not found at ${DB_PATH}. Run: npm run db:seed`);
+    if (!existsSync(DB_PATH)) throw new Error(`Database not found at ${DB_PATH}. Run: npx agent seed`);
     db = new DatabaseSync(DB_PATH, { readOnly: true });
   }
   return db.prepare(sql).all(...params);
